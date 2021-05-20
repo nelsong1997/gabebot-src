@@ -3,22 +3,66 @@ const config = require("./config.json");
 const fetch = require("node-fetch");
 const client = new Discord.Client();
 
+//initialize
+
+let settings = {}
+
+client.on("ready", async function() {
+    let response = await fetch('http://localhost:5000/get-settings', {
+        method: "GET",
+        headers: { 'Content-Type': 'application/json' } //should maybe handle bad responses
+    })
+    settings = await response.json()
+})
+
 //event handlers
 
 client.on("message", async function(message) {
     if (message.author.bot) return;
 
+    let guildId = message.guild.id
+    let channelId = message.channel.id
+
+    if (!settings[guildId]) {
+        settings[guildId] = {
+            prefix: "!",
+            logMode: "off",
+            logChannelId: null,
+            welcomeMessage: null,
+            welcomeChannelId: null,
+            commandChannelId: null
+        }
+
+        await updateSettings(settings)
+    }
+
+    let guildSettings = settings[guildId]
+
     //consider returning same as help when bot is mentioned.
 
     //commands
 
-    const prefix = "!"
-
-    if (!message.content.startsWith(prefix)) return
-
-    let messageArray = message.content.slice(1).split(" ")
+    let msgContent = message.content
+    let prefix = guildSettings.prefix
+    if (!msgContent.startsWith(prefix)) return
+    let messageArray = msgContent.toLowerCase().slice(1).split(" ")
     let command = messageArray[0]
     let params = messageArray.slice(1)
+
+    //valid anywhere
+    if (command==="setcommandchannel") {
+        if (settings[guildId].commandChannelId===channelId) {
+            message.channel.send(`I was already listening for commands here in <#${channelId}>...`)
+            return
+        }
+        settings[guildId].commandChannelId = channelId
+        await updateSettings(settings)
+        message.channel.send(`I will now listen for commands here in <#${channelId}>!`)
+        return
+    }
+
+    //valid only in designated channel
+    if (channelId!==guildSettings.commandChannelId) return
 
     switch (command) {
         case "flip":
@@ -36,6 +80,9 @@ client.on("message", async function(message) {
 })
 
 client.on("voiceStateUpdate", async function(oldMember, newMember) {
+    let guildId = oldMember.guild.id
+    if (settings[guildId].logMode==="off") return
+
     let logItem = null
 
     let voiceLog = await cleanUpVoiceLog()
@@ -306,6 +353,15 @@ async function cleanUpVoiceLog() {
     })
 
     return voiceLog
+}
+
+async function updateSettings(settingsObj) {
+    let response = await fetch('http://localhost:5000/post-settings', {
+        method: "POST",
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(settingsObj)
+    })                              //should handle bad res
+    return response
 }
 
 client.login(config.BOT_TOKEN);
