@@ -47,18 +47,22 @@ client.on("message", async function(message) {
     if (!msgContent.startsWith(prefix)) return
     let messageArray = msgContent.toLowerCase().slice(1).split(" ")
     let command = messageArray[0]
-    let params = messageArray.slice(1)
+    let params = messageArray.slice(prefix.length)
 
     //valid anywhere
-    if (command==="setcommandchannel") {
-        if (settings[guildId].commandChannelId===channelId) {
-            message.channel.send(`I was already listening for commands here in <#${channelId}>...`)
-            return
-        }
-        settings[guildId].commandChannelId = channelId
-        await updateSettings(settings)
-        message.channel.send(`I will now listen for commands here in <#${channelId}>!`)
-        return
+    switch (command) {
+        case "setcommandchannel":
+            setCommandChannel(message)
+            break;
+        case "unsetcommandchannel":
+            unsetCommandChannel(message)
+            break;
+        case "setlogchannel":
+            setLogChannel(message)
+            break;
+        case "setwelcomechannel":
+            setWelcomeChannel(message)
+            break;
     }
 
     //valid only in designated channel
@@ -76,16 +80,32 @@ client.on("message", async function(message) {
             break;
         case "help":
             help(message)
+            break;
+        case "prefix":
+            setPrefix(params, message)
+            break;
+        case "logmode":
+            logMode(params, message)
+            break;
+        case "setwelcomemessage":
+            setWelcomeMessage(params, message)
+            break;
+        case "unsetwelcomemessage":
+            unsetWelcomeMessage(message)
+            break;
     }
 })
 
 client.on("voiceStateUpdate", async function(oldMember, newMember) {
     let guildId = oldMember.guild.id
-    if (settings[guildId].logMode==="off") return
+    let logMode = settings[guildId].logMode
+    if (logMode==="off") return
 
     let logItem = null
 
-    let voiceLog = await cleanUpVoiceLog()
+    let voiceLog;
+    
+    if (logMode==="passive") voiceLog = await cleanUpVoiceLog()
 
     if (oldMember.channelID!==newMember.channelID) {
         logItem = {
@@ -104,21 +124,95 @@ client.on("voiceStateUpdate", async function(oldMember, newMember) {
             logItem.oldChannelName = oldMember.guild.channels.cache.get(oldMember.channelID).name
             logItem.newChannelName = newMember.guild.channels.cache.get(newMember.channelID).name
         }
-        voiceLog.push(logItem)
-
-        await fetch('http://localhost:5000/post-logs', {
-            method: "POST",
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(voiceLog)
-        })
+        if (logMode==="passive") {
+            voiceLog.push(logItem)
+    
+            await fetch(`http://localhost:5000/post-logs?guildId=${guildId}`, {
+                method: "POST",
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(voiceLog)
+            })
+        } else if (logMode==="live") {
+            client.channels.fetch(settings[guildId].logChannelId).then(logChannel => {
+                logChannel.send(logItemsToString(logItem))
+            }).catch(error => console.log(error))
+        }
     }
 })
 
 client.on("guildMemberAdd", function(member) {
-    //allow user to set welcome message
+    let guildId = member.guild.id
+    let welcomeMessage = settings[guildId].welcomeMessage
+    if (!welcomeMessage) return
+    client.channels.fetch(welcomeChannelId).then(welcomeChannel => {
+        welcomeChannel.send(welcomeMessage)
+    })
 });
 
 // commands
+
+//----universal commands
+
+async function setCommandChannel(message) {
+    let channelId = message.channel.id
+    let guildId = message.guild.id
+    if (settings[guildId].commandChannelId===channelId) {
+        message.channel.send(`I was already listening for commands here in <#${channelId}>...`)
+        return
+    }
+    settings[guildId].commandChannelId = channelId
+    await updateSettings(settings)
+    message.channel.send(`I will now only listen for commands here in <#${channelId}>!`)
+    return
+}
+
+async function unsetCommandChannel(message) {
+    let guildId = message.guild.id
+    if (!settings[guildId].commandChannelId) {
+        message.channel.send(`I didn't have a command channel set...`)
+        return
+    }
+    settings[guildId].commandChannelId = null
+    await updateSettings(settings)
+    message.channel.send(`I will now listen for commands in all channels!`)
+    return
+}
+
+async function setLogChannel(message) {
+    let guildId = message.guild.id
+    let channelId = message.channel.id
+    if (settings[guildId].logMode!=="live") {
+        message.channel.send(`Error: Can only set log channel when logmode is set to "live."`)
+        return
+    } else if (settings[guildId].logChannelId===channelId) {
+        message.channel.send(`Log channel was already set to <#${channelId}>.`)
+        return
+    } else {
+        settings[guildId].logChannelId = channelId
+        await updateSettings(settings)
+        message.channel.send(`I will now log voice channel activity here in <#${channelId}>!`)
+        return
+    }
+}
+
+async function setWelcomeChannel(message) {
+    let guildId = message.guild.id
+    let channelId = message.channel.id
+    if (settings[guildId].welcomeChannelId===channelId) {
+        message.channel.send(`Welcome channel was already set to <#${channelId}>.`)
+        return
+    } else {
+        settings[guildId].welcomeChannelId = channelId
+        await updateSettings(settings)
+        message.channel.send(
+            `I will now welcome new users here in <#${channelId}>! ` +
+            `Please be sure to use "setwelcomemessage" command to set the message.`
+        )
+        return
+    }
+}
+
+//----Restricted commands
 
 function flip(message) {
     let roll = Math.random()
@@ -128,36 +222,6 @@ function flip(message) {
 
 async function log(params, message) {
     let voiceLog = await cleanUpVoiceLog()
-
-    function logItemsToString(items) {
-        function dateToString(dateString) {
-            const date = new Date(dateString)
-            let spaceyDate = date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit'}) //9:03 AM
-            let formattedDate = spaceyDate.split(" ").join("").toLowerCase() //9:03am
-            return (
-                `${formattedDate} ` +
-                `on ${new Intl.DateTimeFormat('en-US', { weekday: "long" } ).format(date)}` //Saturday
-            )
-        }
-        let logsString = ""
-        for (let logItem of items) {
-            switch (logItem.changeType) {
-                case "join": logsString += 
-                    `${logItem.username} joined **${logItem.newChannelName}** ` +
-                    `at ${dateToString(logItem.timeStamp)}.\n`
-                break;
-                case "leave": logsString += 
-                    `${logItem.username} left **${logItem.oldChannelName}** ` +
-                    `at ${dateToString(logItem.timeStamp)}.\n`
-                break;
-                case "move": logsString += 
-                    `${logItem.username} left **${logItem.oldChannelName}** and ` +
-                    `joined **${logItem.newChannelName}** ` +
-                    `at ${dateToString(logItem.timeStamp)}.\n`
-            }
-        }
-        return logsString
-    }
 
     let sendThis = ""
 
@@ -224,7 +288,7 @@ async function log(params, message) {
         range = rangeString.split("-")
         range[0] = Number(range[0])
         range[1] = Number(range[1])
-        } else if (rangeString.toLowerCase()==="all") range[1] = voiceLog.length //all ---------------------------FIX
+        } else if (rangeString.toLowerCase()==="all") range[1] = voiceLog.length
         else range[1] = Number(rangeString) //nothing specified (gives 5 most recent)
 
         if (range[0] > range[1]) {
@@ -330,10 +394,100 @@ function help(message) {
     )
 }
 
+async function setPrefix(params, message) {
+    let newPrefix = params[0]
+    let acceptableChars = "!$%^&"
+    if (newPrefix.length > 2) {
+        message.channel.send(`Could not set prefix: Prefixes longer than 2 chars not allowed`)
+        return
+    } else if (
+        !acceptableChars.includes(newPrefix[0]) ||
+        !acceptableChars.includes(newPrefix[1])
+    ) {
+        let charsArray = acceptableChars.split("")
+        let charsString = charsArray.join(", ")
+        message.channel.send(`Could not set prefix: Disallowed character used. Acceptable chars: ${charsString}`)
+    } else {
+        settings[message.guild.id].prefix = newPrefix
+        await updateSettings(settings)
+    }
+}
+
+async function logMode(params, message) {
+    let newLogMode = params[0]
+    let validLogModes = ["off", "passive", "live"]
+    let logChannelId = settings[message.guild.id].logChannelId
+    if (!validLogModes.includdes(newLogMode)) return
+    else {
+        if (newLogMode==="off") {
+            message.channel.send("Voice logging disabled.")
+        } else if (newLogMode==="passive") {
+            message.channel.send("Voice logging enabled! Use the log command to display voice logs.")
+        } else if (newLogMode==="live" && logChannelId) {
+            client.channels.fetch(logChannelId).then(logChannel => {
+                if (logChannel) {
+                    message.channel.send(
+                        "Voice logging enabled! Voice activity will be logged " +
+                        `in <#${logChannelId}.`
+                    )
+                } else {
+                    message.channel.send(
+                        "Voice logging enabled, but the current voice log channel is invalid. " +
+                        "Please set it again using setlogchannel."
+                    )
+                }
+            })
+        } else if (newLogMode==="live") {
+            message.channel.send(
+                "Voice logging enabled, but a channel needs to be set as the log channel. " +
+                "Please use the command setlogchannel."
+            )
+        }
+        settings[message.guild.id].logMode = newLogMode
+        await updateSettings(settings)
+    }
+
+}
+
+async function setWelcomeMessage(params, message) {
+    let welcomeMessage = params.join(" ")
+    let guildId = message.guild.id
+    let welcomeChannelId = settings[guildId].welcomeChannelId
+    if (welcomeChannelId) {
+        client.channels.fetch(welcomeChannelId).then(welcomeChannel => {
+            if (welcomeChannel) {
+                message.channel.send("Welcome message updated! Posting it below...")
+                message.channel.send(welcomeMessage)
+            } else {
+                message.channel.send(
+                    "Welcome message updated, but the current welcome channel is invalid. " +
+                    "Please use setwelcomechannel to update it. Posting welcome message below..."
+                )
+                message.channel.send(welcomeMessage)
+            }
+        })
+    } else {
+        message.channel.send(
+            "Welcome message updated, but there is no welcome channel set. " +
+            "Please use setwelcomechannel to set it. Posting welcome message below..."
+        )
+        message.channel.send(welcomeMessage)
+    }
+    settings[guildId].welcomeMessage = welcomeMessage
+    await updateSettings(settings)
+}
+
+async function unsetWelcomeMessage(message) {
+    let guildId = message.guild.id
+    settings[guildId].welcomeMessage = null
+    await updateSettings(settings)
+    message.channel.send("Welcome message disabled.")
+}
+
 // misc funcs
 
-async function cleanUpVoiceLog() {
-    let getResponse = await fetch('http://localhost:5000/get-logs', {
+async function cleanUpVoiceLog(guildId) {
+    let getResponse = await fetch(`http://localhost:5000/get-logs?guildId=${guildId}`, {
         method: "GET",
         headers: { 'Content-Type': 'application/json' } //should maybe handle bad responses
     })
@@ -346,7 +500,7 @@ async function cleanUpVoiceLog() {
             //could also wait till it's NOT too old and then delete all before.
         }
     }
-    await fetch('http://localhost:5000/post-logs', {
+    await fetch(`http://localhost:5000/post-logs?guildId=${guildId}`, {
         method: "POST",
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(voiceLog)
@@ -362,6 +516,36 @@ async function updateSettings(settingsObj) {
         body: JSON.stringify(settingsObj)
     })                              //should handle bad res
     return response
+}
+
+function logItemsToString(items) {
+    function dateToString(dateString) {
+        const date = new Date(dateString)
+        let spaceyDate = date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit'}) //9:03 AM
+        let formattedDate = spaceyDate.split(" ").join("").toLowerCase() //9:03am
+        return (
+            `${formattedDate} ` +
+            `on ${new Intl.DateTimeFormat('en-US', { weekday: "long" } ).format(date)}` //Saturday
+        )
+    }
+    let logsString = ""
+    for (let logItem of items) {
+        switch (logItem.changeType) {
+            case "join": logsString += 
+                `${logItem.username} joined **${logItem.newChannelName}** ` +
+                `at ${dateToString(logItem.timeStamp)}.\n`
+            break;
+            case "leave": logsString += 
+                `${logItem.username} left **${logItem.oldChannelName}** ` +
+                `at ${dateToString(logItem.timeStamp)}.\n`
+            break;
+            case "move": logsString += 
+                `${logItem.username} left **${logItem.oldChannelName}** and ` +
+                `joined **${logItem.newChannelName}** ` +
+                `at ${dateToString(logItem.timeStamp)}.\n`
+        }
+    }
+    return logsString
 }
 
 client.login(config.BOT_TOKEN);
