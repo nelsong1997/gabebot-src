@@ -45,9 +45,9 @@ client.on("message", async function(message) {
     let msgContent = message.content
     let prefix = guildSettings.prefix
     if (!msgContent.startsWith(prefix)) return
-    let messageArray = msgContent.toLowerCase().slice(1).split(" ")
+    let messageArray = msgContent.toLowerCase().slice(prefix.length).split(" ")
     let command = messageArray[0]
-    let params = messageArray.slice(prefix.length)
+    let params = messageArray.slice(1)
 
     //valid anywhere
     switch (command) {
@@ -81,7 +81,7 @@ client.on("message", async function(message) {
         case "help":
             help(message)
             break;
-        case "prefix":
+        case "setprefix":
             setPrefix(params, message)
             break;
         case "logmode":
@@ -134,7 +134,7 @@ client.on("voiceStateUpdate", async function(oldMember, newMember) {
             })
         } else if (logMode==="live") {
             client.channels.fetch(settings[guildId].logChannelId).then(logChannel => {
-                logChannel.send(logItemsToString(logItem))
+                logChannel.send(logItemsToString([logItem]))
             }).catch(error => console.log(error))
         }
     }
@@ -143,9 +143,11 @@ client.on("voiceStateUpdate", async function(oldMember, newMember) {
 client.on("guildMemberAdd", function(member) {
     let guildId = member.guild.id
     let welcomeMessage = settings[guildId].welcomeMessage
+    let welcomeChannelId = settings[guildId].welcomeChannelId
     if (!welcomeMessage) return
     client.channels.fetch(welcomeChannelId).then(welcomeChannel => {
         welcomeChannel.send(welcomeMessage)
+        .catch(error => console.log(error))
     })
 });
 
@@ -395,14 +397,23 @@ function help(message) {
 }
 
 async function setPrefix(params, message) {
+    let oldPrefix = settings[message.guild.id].prefix
     let newPrefix = params[0]
+    if (!newPrefix) {
+        message.channel.send("Could not set prefix: No new prefix specified!")
+        return
+    } else if (oldPrefix===newPrefix) {
+        message.channel.send(`Prefix was already set to ${oldPrefix}!`)
+        return
+    }
     let acceptableChars = "!$%^&"
     if (newPrefix.length > 2) {
         message.channel.send(`Could not set prefix: Prefixes longer than 2 chars not allowed`)
         return
     } else if (
         !acceptableChars.includes(newPrefix[0]) ||
-        !acceptableChars.includes(newPrefix[1])
+        (newPrefix[1] &&
+        !acceptableChars.includes(newPrefix[1]))
     ) {
         let charsArray = acceptableChars.split("")
         let charsString = charsArray.join(", ")
@@ -410,6 +421,7 @@ async function setPrefix(params, message) {
     } else {
         settings[message.guild.id].prefix = newPrefix
         await updateSettings(settings)
+        message.channel.send(`Prefix set to "${newPrefix}"! Now your commands will look like: "${newPrefix}command"`)
     }
 }
 
@@ -417,7 +429,7 @@ async function logMode(params, message) {
     let newLogMode = params[0]
     let validLogModes = ["off", "passive", "live"]
     let logChannelId = settings[message.guild.id].logChannelId
-    if (!validLogModes.includdes(newLogMode)) return
+    if (!validLogModes.includes(newLogMode)) return
     else {
         if (newLogMode==="off") {
             message.channel.send("Voice logging disabled.")
