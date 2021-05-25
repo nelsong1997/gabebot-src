@@ -105,7 +105,7 @@ client.on("voiceStateUpdate", async function(oldMember, newMember) {
 
     let voiceLog;
     
-    if (logMode==="passive") voiceLog = await cleanUpVoiceLog()
+    if (logMode==="passive") voiceLog = await cleanUpVoiceLog(guildId)
 
     if (oldMember.channelID!==newMember.channelID) {
         logItem = {
@@ -223,7 +223,8 @@ function flip(message) {
 }
 
 async function log(params, message) {
-    let voiceLog = await cleanUpVoiceLog()
+    let guildId = message.guild.id
+    let voiceLog = await cleanUpVoiceLog(guildId)
 
     let sendThis = ""
 
