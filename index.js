@@ -8,7 +8,7 @@ const client = new Discord.Client();
 let settings = {}
 
 client.on("ready", async function() {
-    let response = await fetch('http://localhost:5000/get-settings', {
+    let response = await fetch('http://localhost:5001/get-settings', {
         method: "GET",
         headers: { 'Content-Type': 'application/json' } //should maybe handle bad responses
     })
@@ -127,7 +127,7 @@ client.on("voiceStateUpdate", async function(oldMember, newMember) {
         if (logMode==="passive") {
             voiceLog.push(logItem)
     
-            await fetch(`http://localhost:5000/post-logs?guildId=${guildId}`, {
+            await fetch(`http://localhost:5001/post-logs?guildId=${guildId}`, {
                 method: "POST",
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(voiceLog)
@@ -500,7 +500,7 @@ async function unsetWelcomeMessage(message) {
 // misc funcs
 
 async function cleanUpVoiceLog(guildId) {
-    let getResponse = await fetch(`http://localhost:5000/get-logs?guildId=${guildId}`, {
+    let getResponse = await fetch(`http://localhost:5001/get-logs?guildId=${guildId}`, {
         method: "GET",
         headers: { 'Content-Type': 'application/json' } //should maybe handle bad responses
     })
@@ -513,7 +513,7 @@ async function cleanUpVoiceLog(guildId) {
             //could also wait till it's NOT too old and then delete all before.
         }
     }
-    await fetch(`http://localhost:5000/post-logs?guildId=${guildId}`, {
+    await fetch(`http://localhost:5001/post-logs?guildId=${guildId}`, {
         method: "POST",
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(voiceLog)
@@ -523,7 +523,7 @@ async function cleanUpVoiceLog(guildId) {
 }
 
 async function updateSettings(settingsObj) {
-    let response = await fetch('http://localhost:5000/post-settings', {
+    let response = await fetch('http://localhost:5001/post-settings', {
         method: "POST",
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(settingsObj)
