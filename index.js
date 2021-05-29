@@ -407,9 +407,17 @@ async function setPrefix(params, message) {
 async function logMode(params, message) {
     let newLogMode = params[0]
     let validLogModes = ["off", "passive", "live"]
-    let logChannelId = settings[message.guild.id].logChannelId
+    let guildSettings = settings[message.guild.id]
+    let logChannelId = guildSettings.logChannelId
+    if (!newLogMode) {
+        message.channel.send(`Current log mode: ${guildSettings.logMode}`)
+        return
+    }
     if (!validLogModes.includes(newLogMode)) return
-    else {
+    else if (newLogMode===guildSettings.logMode) {
+        message.channel.send(`Log mode was already ${guildSettings.logMode}!`)
+        return
+    } else {
         if (newLogMode==="off") {
             message.channel.send("Voice logging disabled.")
         } else if (newLogMode==="passive") {

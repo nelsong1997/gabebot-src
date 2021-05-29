@@ -7,7 +7,7 @@ app.get('/get-logs', (request, response) => {
   let guildId = request.query.guildId
   fs.readFile(`./logs/${guildId}.json`, (err, data) => {
     if (err && (err.errno===-4058 || err.errno===-2)) { //no such file or directory; win || linux
-      fs.writeFile(`./logs/${guildId}.json`, JSON.stringify(request.body), function(error) { //create new file
+      fs.writeFile(`./logs/${guildId}.json`, "[]", function(error) { //create new file
         if (error) {
           console.log("bad post (1)", error)
         }
