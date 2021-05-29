@@ -6,13 +6,15 @@ const fs = require('fs')
 app.get('/get-logs', (request, response) => {
   let guildId = request.query.guildId
   fs.readFile(`./logs/${guildId}.json`, (err, data) => {
-    if (err && err.errno===-4058) { //no such file or directory
+    if (err && (err.errno===-4058 || err.errno===-2)) { //no such file or directory; win || linux
       fs.writeFile(`./logs/${guildId}.json`, JSON.stringify(request.body), function(error) { //create new file
-        if (error) throw error;
+        if (error) {
+          console.log("bad post (1)", error)
+        }
         else response.type('json').send('[]') //return empty logs
       })
     } else if (err) { //unpredicted error
-      console.log(err)
+      console.log("bad get", err)
       return
     } else { //if the log file already exists
       const json = JSON.parse(data);
@@ -24,7 +26,9 @@ app.get('/get-logs', (request, response) => {
 app.post('/post-logs', express.json(), (request, response) => {
   let guildId = request.query.guildId
     fs.writeFile(`./logs/${guildId}.json`, JSON.stringify(request.body), function(error) {
-      if (error) throw error;
+      if (error) {
+        console.log("bad post (2)", error)
+      }
       else response.status(201).send('Success')
     })
 })

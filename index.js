@@ -371,29 +371,7 @@ function roll(params, message) {
 
 function help(message) {
     message.channel.send(
-        `Hi there! A list of available commands is below.
-        \n` +
-        `\`\`!flip\`\`\n` +
-        `Flip a coin. returns "heads" or "tails"
-        \n` +
-        `\`\`!log [type] [range] [id]\`\`\n\n` +
-        `ex.: !log all\n\n` +
-        `View logs for when people join, leave and move between voice channels.\n` +
-        `\`\`[type]\`\`: can be \`\`all\`\`, \`\`peruser\`\`, or \`\`user\`\`, or \`\`length\`\`. \`\`all\`\` shows all logs within the range. ` +
-        `\`\`peruser\`\` only shows 1 log per distinct user. i.e. the last action each user performed. ` +
-        `\`\`user\`\` shows logs for a specific user, determined by the user \`\`[id]\`\` provided at the end of the command. ` +
-        `You can copy people's id's by enabling developer mode in advanced settings. \`\`length\`\` shows how many logs there are currently.\n` +
-        `\`\`[range]\`\` (defaults to 5): If one number *x* is provided for the range, the most recent *x* logs will display. ` +
-        `Otherwise a range of numbers or time specification can be used. Examples: 5-10, 14:00-15:00, before5:00pm, after1:23am\n` +
-        `\`\`[id]\`\`: Specifies user id when using \`\`[type] = user\`\`.\n` +
-        `Logs older than 24 hrs are deleted whenever voice state changes or a log command is used.
-        \n` +
-        `\`\`!roll [#sides] [#sides] [#sides]...\`\`\n\n` +
-        `ex.: !roll 6 6\n\n` +
-        `Roll a die or a bunch of dice. each die you want to roll is designated by its number of sides separated by spaces.
-        \n` +
-        `\`\`!help\`\`\n` +
-        `Gives you this text!`
+        `Head here to see the list of commands: https://nelsong1997.github.io/gabebot/#help`
     )
 }
 
@@ -562,6 +540,3 @@ function logItemsToString(items) {
 }
 
 client.login(config.BOT_TOKEN);
-
-//!help
-//!roll
