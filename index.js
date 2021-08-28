@@ -1,7 +1,7 @@
 const Discord = require("discord.js");
 const config = require("./config.json");
 const fetch = require("node-fetch");
-const client = new Discord.Client();
+const client = new Discord.Client( {intents: ["GUILD_MEMBERS", "GUILD_MESSAGES", "GUILDS", "DIRECT_MESSAGES", "GUILD_VOICE_STATES"], partials: ["CHANNEL"]} );
 
 //initialize
 
@@ -17,7 +17,7 @@ client.on("ready", async function() {
 
 //event handlers
 
-client.on("message", async function(message) {
+client.on("createMessage", async function(message) {
     if (message.author.bot) return;
 
     let guildId = message.guild.id
@@ -360,13 +360,21 @@ function roll(params, message) {
 
     let sendThis = ""
 
+    if (params.length===0) sendThis = "Please roll at least one die..."
     for (let i=0; i<params.length; i++) {
-        let numSides = params[i]
+        let numSides = Number(params[i])
+        if (isNaN(numSides) || typeof(numSides)!=="number") {
+            sendThis = "One or more dice has NaN sides..."
+            break;
+        } else if (numSides < 1 || numSides%1) {
+            sendThis = "One or more dice has a non-whole number side..."
+            break;
+        }
         if (params.length > 1) sendThis += `**Roll ${i+1} (D${numSides})**: ${rollDie(numSides)}\n`
         else sendThis = rollDie(numSides)
     }
 
-    message.channel.send(sendThis)
+    message.channel.send(sendThis.toString())
 }
 
 function help(message) {
