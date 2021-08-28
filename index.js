@@ -17,7 +17,7 @@ client.on("ready", async function() {
 
 //event handlers
 
-client.on("createMessage", async function(message) {
+client.on("messageCreate", async function(message) {
     if (message.author.bot) return;
 
     let guildId = message.guild.id
@@ -107,22 +107,22 @@ client.on("voiceStateUpdate", async function(oldMember, newMember) {
     
     if (logMode==="passive") voiceLog = await cleanUpVoiceLog(guildId)
 
-    if (oldMember.channelID!==newMember.channelID) {
+    if (oldMember.channelId!==newMember.channelId) {
         logItem = {
             username: oldMember.guild.members.cache.get(oldMember.id).user.username,
             userId: oldMember.id,
             timeStamp: new Date()
         }
-        if (oldMember.channelID===null) {
+        if (oldMember.channelId===null) {
             logItem.changeType = 'join'
-            logItem.newChannelName = newMember.guild.channels.cache.get(newMember.channelID).name
-        } else if (newMember.channelID===null) {
+            logItem.newChannelName = newMember.guild.channels.cache.get(newMember.channelId).name
+        } else if (newMember.channelId===null) {
             logItem.changeType = 'leave',
-            logItem.oldChannelName = oldMember.guild.channels.cache.get(oldMember.channelID).name
+            logItem.oldChannelName = oldMember.guild.channels.cache.get(oldMember.channelId).name
         } else {
             logItem.changeType = 'move',
-            logItem.oldChannelName = oldMember.guild.channels.cache.get(oldMember.channelID).name
-            logItem.newChannelName = newMember.guild.channels.cache.get(newMember.channelID).name
+            logItem.oldChannelName = oldMember.guild.channels.cache.get(oldMember.channelId).name
+            logItem.newChannelName = newMember.guild.channels.cache.get(newMember.channelId).name
         }
         if (logMode==="passive") {
             voiceLog.push(logItem)
@@ -224,6 +224,11 @@ function flip(message) {
 
 async function log(params, message) {
     let guildId = message.guild.id
+    let guildSettings = settings[guildId]
+    if (guildSettings.logMode==="off") {
+        message.channel.send(`Voice logging is currently disabled. Please use ${guildSettings.prefix}logmode to enable!`)
+        return
+    }
     let voiceLog = await cleanUpVoiceLog(guildId)
 
     let sendThis = ""
@@ -417,6 +422,7 @@ async function logMode(params, message) {
     let validLogModes = ["off", "passive", "live"]
     let guildSettings = settings[message.guild.id]
     let logChannelId = guildSettings.logChannelId
+    let guildPrefix = guildSettings.prefix
     if (!newLogMode) {
         message.channel.send(`Current log mode: ${guildSettings.logMode}`)
         return
@@ -429,7 +435,7 @@ async function logMode(params, message) {
         if (newLogMode==="off") {
             message.channel.send("Voice logging disabled.")
         } else if (newLogMode==="passive") {
-            message.channel.send("Voice logging enabled! Use the log command to display voice logs.")
+            message.channel.send(`Voice logging enabled! Use the ${guildPrefix}log command to display voice logs.`)
         } else if (newLogMode==="live" && logChannelId) {
             client.channels.fetch(logChannelId).then(logChannel => {
                 if (logChannel) {
@@ -440,14 +446,14 @@ async function logMode(params, message) {
                 } else {
                     message.channel.send(
                         "Voice logging enabled, but the current voice log channel is invalid. " +
-                        "Please set it again using setlogchannel."
+                        `Please set it again using the ${guildPrefix}setlogchannel command.`
                     )
                 }
             })
         } else if (newLogMode==="live") {
             message.channel.send(
                 "Voice logging enabled, but a channel needs to be set as the log channel. " +
-                "Please use the command setlogchannel."
+                `Please use the ${guildPrefix}setlogchannel command.`
             )
         }
         settings[message.guild.id].logMode = newLogMode
